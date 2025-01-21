@@ -18,11 +18,16 @@
     </ItemGroup>
 
     <ItemGroup>
-      <Folder Include="imagesCapt\" />
+      <None Remove="imagesCapt\captcha_cropped.png" />
+      <None Remove="imagesCapt\**" />
     </ItemGroup>
 
     <ItemGroup>
-      <None Remove="imagesCapt\captcha_cropped.png" />
+      <Compile Remove="imagesCapt\**" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <EmbeddedResource Remove="imagesCapt\**" />
     </ItemGroup>
 
 </Project>
