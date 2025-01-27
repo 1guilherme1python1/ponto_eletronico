@@ -4,6 +4,7 @@ using OpenQA.Selenium;
 using OpenQA.Selenium.Chrome;
 using OpenQA.Selenium.Support.UI;
 using SeleniumExtras.WaitHelpers;
+using SkiaSharp;
 using Tesseract;
 
 class Program
@@ -12,8 +13,8 @@ class Program
     {
         try
         {
-            string projetoDiretorio =  Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\..\"));
-            string caminhoArquivo = Path.Combine(projetoDiretorio, "dias_uteis.txt");
+            string baseDirectory = AppContext.BaseDirectory;
+            string caminhoArquivo = Path.Combine(baseDirectory, "dias_uteis.txt");
             string[] diasUteis = File.ReadAllText(caminhoArquivo).Split(',');
 
             int diaAtual = DateTime.Now.Day;
@@ -30,8 +31,7 @@ class Program
 
                     Environment.SetEnvironmentVariable("TESSDATA_PREFIX", tessDataPath);
 
-                    string projectRootPath =
-                        Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\..\"));
+                    string projectRootPath = AppContext.BaseDirectory;
 
                     string captchaText = "";
 
@@ -131,6 +131,28 @@ class Program
         {
             Console.WriteLine($"Erro de timeout: {e.Message}");
         }
+    }
+    
+    static void CropCaptchaImage(string screenshotPath, string croppedPath, int x, int y, int width, int height)
+    {
+        using (var inputStream = File.OpenRead(screenshotPath))
+        using (var originalImage = SKBitmap.Decode(inputStream))
+        {
+            var cropRect = new SKRectI(x, y, x + width, y + height);
+            using (var croppedImage = new SKBitmap(cropRect.Width, cropRect.Height))
+            using (var canvas = new SKCanvas(croppedImage))
+            {
+                canvas.DrawBitmap(originalImage, cropRect, new SKRect(0, 0, cropRect.Width, cropRect.Height));
+                canvas.Flush();
+
+                using (var outputStream = File.OpenWrite(croppedPath))
+                {
+                    croppedImage.Encode(outputStream, SKEncodedImageFormat.Png, 100);
+                }
+            }
+        }
+
+        Console.WriteLine($"Imagem do captcha salva em: {croppedPath}");
     }
 
     static async Task<string> DownloadCaptchaImageAsync(string url)
