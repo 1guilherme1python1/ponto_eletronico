@@ -21,15 +21,6 @@
 
     <ItemGroup>
       <None Remove="imagesCapt\captcha_cropped.png" />
-      <None Remove="imagesCapt\**" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <Compile Remove="imagesCapt\**" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <EmbeddedResource Remove="imagesCapt\**" />
     </ItemGroup>
 
     <ItemGroup>
@@ -37,4 +28,10 @@
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
     </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="imagesCapt\" />
+    </ItemGroup>
+
+   
 </Project>

@@ -1,5 +1,8 @@
-﻿using System.Drawing;
-using System.Net;
+﻿using System;
+using System.IO;
+using System.Linq;
+using System.Net.Http;
+using System.Threading.Tasks;
 using OpenQA.Selenium;
 using OpenQA.Selenium.Chrome;
 using OpenQA.Selenium.Support.UI;
@@ -13,13 +16,14 @@ class Program
     {
         try
         {
+            string projectRootPath = Directory.GetParent(AppContext.BaseDirectory).Parent.Parent.Parent.FullName;
             string baseDirectory = AppContext.BaseDirectory;
             string caminhoArquivo = Path.Combine(baseDirectory, "dias_uteis.txt");
             string[] diasUteis = File.ReadAllText(caminhoArquivo).Split(',');
 
             int diaAtual = DateTime.Now.Day;
 
-            if (Array.Exists(diasUteis, dia => dia.Trim() == diaAtual.ToString()))
+            if (diasUteis.Contains(diaAtual.ToString()))
             {
                 var options = new ChromeOptions();
                 options.AddArgument("--start-maximized");
@@ -27,89 +31,64 @@ class Program
                 {
                     driver.Navigate().GoToUrl("https://portalrh.mpac.mp.br/rhsysweb-portal/public/xcp/XcpLogin.xhtml");
 
-                    string tessDataPath = @"D:\csharp\ponto-eletronico\lib";
-
+                    string tessDataPath =  @"/home/guilherme/Documentos/ponto_eletronico/lib/";
                     Environment.SetEnvironmentVariable("TESSDATA_PREFIX", tessDataPath);
-
-                    string projectRootPath = AppContext.BaseDirectory;
 
                     string captchaText = "";
 
                     var newCaptcha = driver.FindElement(By.Id("form:btnRefreshCaptcha"));
-
                     int attempts = 0;
-                    int maxAttempts = 5;
+                    const int maxAttempts = 5;
 
                     do
                     {
                         var captchaElement = new WebDriverWait(driver, TimeSpan.FromSeconds(10))
-                            .Until(SeleniumExtras.WaitHelpers.ExpectedConditions.ElementIsVisible(
-                                By.Id("form:imgDownloadCaptcha")));
+                            .Until(ExpectedConditions.ElementIsVisible(By.Id("form:imgDownloadCaptcha")));
 
                         var screenshot = ((ITakesScreenshot)driver).GetScreenshot();
                         string screenshotPath = Path.Combine(projectRootPath, "screenshot.png");
                         screenshot.SaveAsFile(screenshotPath);
 
-                        using (var fullScreenShot = new Bitmap(screenshotPath))
+                        string imagesCaptPath = Path.Combine(projectRootPath, "imagesCapt");
+                        if (!Directory.Exists(imagesCaptPath))
                         {
-                            var location = captchaElement.Location;
-                            var size = captchaElement.Size;
+                            Directory.CreateDirectory(imagesCaptPath);
+                        }
 
-                            Rectangle captchaArea = new Rectangle(location.X, location.Y, size.Width, size.Height);
+                        string captchaImagePath = Path.Combine(imagesCaptPath, "captcha_cropped.png");
 
-                            using (var captchaImage = fullScreenShot.Clone(captchaArea, fullScreenShot.PixelFormat))
-                            {
-                                string imagesCaptPath = Path.Combine(projectRootPath, "imagesCapt");
-                                if (!Directory.Exists(imagesCaptPath))
-                                {
-                                    Directory.CreateDirectory(imagesCaptPath);
-                                }
+                        // Cortar o captcha
+                        CropCaptchaImage(screenshotPath, captchaImagePath, captchaElement.Location.X, captchaElement.Location.Y, captchaElement.Size.Width, captchaElement.Size.Height);
 
-                                string captchaImagePath = Path.Combine(imagesCaptPath, "captcha_cropped.png");
-                                captchaImage.Save(captchaImagePath, System.Drawing.Imaging.ImageFormat.Png);
+                        // Resolver o captcha
+                        captchaText = ResolveCaptcha(captchaImagePath, tessDataPath);
 
-                                Console.WriteLine($"Imagem do captcha salva em: {captchaImagePath}");
+                        if (!string.IsNullOrEmpty(captchaText))
+                        {
+                            break;
+                        }
 
-                                captchaText = ResolveCaptcha(captchaImagePath, tessDataPath);
+                        Console.WriteLine($"Captcha inválido na tentativa {attempts + 1}. Gerando um novo...");
 
-                                if (!string.IsNullOrEmpty(captchaText))
-                                {
-                                    break;
-                                }
+                        newCaptcha.Click();
+                        attempts++;
 
-                                Console.WriteLine($"Captcha text: {captchaText} tentativa em: ${attempts}");
-
-                                Thread.Sleep(5000);
-                                newCaptcha = driver.FindElement(By.Id("form:btnRefreshCaptcha"));
-                                newCaptcha.Click();
-
-                                attempts++;
-
-                                if (attempts >= maxAttempts)
-                                {
-                                    throw new Exception("Falha ao resolver o captcha após várias tentativas.");
-                                }
-                            }
+                        if (attempts >= maxAttempts)
+                        {
+                            throw new Exception("Falha ao resolver o captcha após várias tentativas.");
                         }
                     } while (string.IsNullOrEmpty(captchaText));
 
-
-                    var username = driver.FindElement(By.Id("form:txtDesUsuario_c"));
-                    var password = driver.FindElement(By.Id("form:txtDesSenha_c"));
-                    var textCaptcha = driver.FindElement(By.Id("form:txtCaptcha"));
-
-                    username.SendKeys("gvieira");
-                    password.SendKeys("Volmatavs#1");
-                    textCaptcha.SendKeys(captchaText);
-
+                    // Preencher formulário de login
+                    driver.FindElement(By.Id("form:txtDesUsuario_c")).SendKeys("gvieira");
+                    driver.FindElement(By.Id("form:txtDesSenha_c")).SendKeys("Volmatavs#1");
+                    driver.FindElement(By.Id("form:txtCaptcha")).SendKeys(captchaText);
 
                     var loginButton = driver.FindElement(By.Id("form:btn_login"));
                     Thread.Sleep(5000);
                     loginButton.Click();
 
                     WebDriverWait wait = new WebDriverWait(driver, TimeSpan.FromSeconds(30));
-                    // wait.Until(ExpectedConditions.ElementToBeClickable(By.Id("form:btn_login"))).Click();
-
                     wait.Until(ExpectedConditions.UrlContains("pagina-logada"));
 
                     if (driver.Url.Contains("pagina-logada"))
@@ -124,15 +103,19 @@ class Program
             }
             else
             {
-                Console.WriteLine("Data fora dos dias uteis");
+                Console.WriteLine("Data fora dos dias úteis");
             }
         }
         catch (WebDriverTimeoutException e)
         {
             Console.WriteLine($"Erro de timeout: {e.Message}");
         }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Erro: {ex.Message}");
+        }
     }
-    
+
     static void CropCaptchaImage(string screenshotPath, string croppedPath, int x, int y, int width, int height)
     {
         using (var inputStream = File.OpenRead(screenshotPath))
@@ -155,36 +138,21 @@ class Program
         Console.WriteLine($"Imagem do captcha salva em: {croppedPath}");
     }
 
-    static async Task<string> DownloadCaptchaImageAsync(string url)
-    {
-        string localPath = Path.Combine(Path.GetTempPath(), "captcha.png");
-
-        using (var httpClient = new HttpClient())
-        {
-            var response = await httpClient.GetAsync(url);
-            response.EnsureSuccessStatusCode();
-
-            var imageBytes = await response.Content.ReadAsByteArrayAsync();
-            await File.WriteAllBytesAsync(localPath, imageBytes);
-        }
-
-        return localPath;
-    }
-
     static string ResolveCaptcha(string imagePath, string tessDataPath)
     {
         try
         {
-            using (var engine = new TesseractEngine(@tessDataPath, "eng", EngineMode.Default))
+            using (var engine = new TesseractEngine(tessDataPath, "eng", EngineMode.Default))
+            using (var img = Pix.LoadFromFile(imagePath))
+            using (var page = engine.Process(img))
             {
-                using (var img = Pix.LoadFromFile(imagePath))
-                {
-                    using (var page = engine.Process(img))
-                    {
-                        return page.GetText().Trim();
-                    }
-                }
+                return page.GetText().Trim();
             }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Erro ao resolver captcha: {ex.Message}");
+            return string.Empty;
         }
         finally
         {
