@@ -31,7 +31,7 @@ class Program
                 {
                     driver.Navigate().GoToUrl("https://portalrh.mpac.mp.br/rhsysweb-portal/public/xcp/XcpLogin.xhtml");
 
-                    string tessDataPath =  @"/home/guilherme/Documentos/ponto_eletronico/lib/";
+                    string tessDataPath =  @"D:\csharp\ponto-eletronico\lib\";
                     Environment.SetEnvironmentVariable("TESSDATA_PREFIX", tessDataPath);
 
                     string captchaText = "";
@@ -57,7 +57,7 @@ class Program
 
                         string captchaImagePath = Path.Combine(imagesCaptPath, "captcha_cropped.png");
 
-                        // Cortar o captcha
+                        // Recorte o captcha
                         CropCaptchaImage(screenshotPath, captchaImagePath, captchaElement.Location.X, captchaElement.Location.Y, captchaElement.Size.Width, captchaElement.Size.Height);
 
                         // Resolver o captcha
@@ -70,13 +70,19 @@ class Program
 
                         Console.WriteLine($"Captcha inválido na tentativa {attempts + 1}. Gerando um novo...");
 
+                        // 🔥 Busque o botão de refresh do captcha novamente antes de clicar
+                        newCaptcha = new WebDriverWait(driver, TimeSpan.FromSeconds(5))
+                            .Until(ExpectedConditions.ElementToBeClickable(By.Id("form:btnRefreshCaptcha")));
+
                         newCaptcha.Click();
+
                         attempts++;
 
                         if (attempts >= maxAttempts)
                         {
                             throw new Exception("Falha ao resolver o captcha após várias tentativas.");
                         }
+
                     } while (string.IsNullOrEmpty(captchaText));
 
                     // Preencher formulário de login
