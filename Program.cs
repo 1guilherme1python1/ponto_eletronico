@@ -16,11 +16,12 @@ class Program
     {
         try
         {
-            string projectRootPath = Directory.GetParent(AppContext.BaseDirectory).Parent.Parent.Parent.FullName;
-            string baseDirectory = AppContext.BaseDirectory;
-            string caminhoArquivo = Path.Combine(baseDirectory, "dias_uteis.txt");
-            string[] diasUteis = File.ReadAllText(caminhoArquivo).Split(',');
+            string baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
 
+            string projectRootPath = Directory.GetParent(baseDirectory)!.Parent!.Parent!.Parent!.FullName;
+            string caminhoArquivo = Path.Combine(projectRootPath, "dias_uteis.txt");
+            string[] diasUteis = File.ReadAllText(caminhoArquivo).Split(',');
+            
             int diaAtual = DateTime.Now.Day;
 
             if (diasUteis.Contains(diaAtual.ToString()))
@@ -31,7 +32,7 @@ class Program
                 {
                     driver.Navigate().GoToUrl("https://portalrh.mpac.mp.br/rhsysweb-portal/public/xcp/XcpLogin.xhtml");
 
-                    string tessDataPath =  @"D:\csharp\ponto-eletronico\lib\";
+                    string tessDataPath =  Path.Combine(projectRootPath, "lib");
                     Environment.SetEnvironmentVariable("TESSDATA_PREFIX", tessDataPath);
 
                     string captchaText = "";
@@ -55,7 +56,7 @@ class Program
                             Directory.CreateDirectory(imagesCaptPath);
                         }
 
-                        string captchaImagePath = Path.Combine(imagesCaptPath, "captcha_cropped.png");
+                        string captchaImagePath = Path.Combine(projectRootPath, "captcha_cropped.png");
 
                         // Recorte o captcha
                         CropCaptchaImage(screenshotPath, captchaImagePath, captchaElement.Location.X, captchaElement.Location.Y, captchaElement.Size.Width, captchaElement.Size.Height);
